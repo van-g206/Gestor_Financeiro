@@ -2,27 +2,32 @@
 <html lang="pt-BR">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>GESTOR FINANCEIRO PRO - V10</title>
-    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/535/535043.png">
 
-<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/535/535043.png">
-<meta name="apple-mobile-web-app-title" content="Gestor V10">
-<meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    
+    <link rel="manifest" href="site.webmanifest">
+
+    <meta name="theme-color" content="#ff85a2">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Gestor V10">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="formata.css"> 
-    <link rel="manifest" href="manifest.json">
 
-<meta name="theme-color" content="#ff85a2">
-
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js')
-      .then(() => console.log("Service Worker Ativo!"))
-      .catch(err => console.log("Erro no Service Worker:", err));
-  }
-</script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js')
+          .then(() => console.log("Service Worker Ativo!"))
+          .catch(err => console.log("Erro no Service Worker:", err));
+      }
+    </script>
 </head>
 <body>
 
@@ -61,7 +66,7 @@
             <div class="sidebar-section">
                 <button class="menu-action" onclick="baixarBackup()"><i class="fa-solid fa-download"></i> Salvar Backup</button>
                 <input type="file" id="fileInput" style="display:none" onchange="restaurarBackup(this)">
-                <button class="menu-action" onclick="$('fileInput').click()"><i class="fa-solid fa-upload"></i> Restaurar Dados</button>
+                <button class="menu-action" onclick="document.getElementById('fileInput').click()"><i class="fa-solid fa-upload"></i> Restaurar Dados</button>
             </div>
         </div>
     </aside>
@@ -208,7 +213,7 @@
             </section>
         </div>
     </main>
-   
+
     <script src="scripts.js"></script>
 </body>
 </html>
