@@ -1,267 +1,198 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Gestor Financeiro v10 - Avançado</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="formata.css"> 
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>GESTOR FINANCEIRO PRO - V10</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="formata.css"> 
 </head>
 <body>
 
-  <div class="sidebar-overlay" id="overlay" onclick="toggleMenu()"></div>
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="sidebar-title">Configurações</div>
-      <button onclick="toggleMenu()" style="background:none; border:none; font-size:1.5rem; color:var(--muted); cursor:pointer" aria-label="Fechar Menu">&times;</button>
-    </div>
+    <div class="sidebar-overlay" id="overlay" onclick="toggleMenu()"></div>
 
-    <div class="sidebar-section">
-      <label class="switch-label">
-        Modo Escuro
-        <span class="switch">
-          <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()" aria-label="Ativar Modo Escuro">
-          <span class="slider"></span>
-        </span>
-      </label>
-    </div>
-
-    <div class="sidebar-section">
-      <label style="margin-bottom:10px">Regra Financeira (%)</label>
-      <div class="config-row"><span style="color:var(--cat-n); font-weight:600">Necessidades</span><input type="number" id="metaN" value="50" min="0" aria-label="Meta de Necessidades em porcentagem"></div>
-      <div class="config-row"><span style="color:var(--cat-d); font-weight:600">Desejos</span><input type="number" id="metaD" value="30" min="0" aria-label="Meta de Desejos em porcentagem"></div>
-      <div class="config-row"><span style="color:var(--cat-s); font-weight:600">Poupança</span><input type="number" id="metaS" value="20" min="0" aria-label="Meta de Poupança em porcentagem"></div>
-      <div id="sumCheck" style="font-size:11px; text-align:right; margin-top:5px; font-weight:bold">Total: 100%</div>
-    </div>
-
-    <div class="sidebar-section">
-      <label style="margin-bottom:10px">Renda & Horas Extras</label>
-      <label class="switch-label">
-        Calcular Horas Extras
-        <span class="switch">
-          <input type="checkbox" id="heAtivo" onchange="toggleHe()" aria-label="Ativar cálculo de Horas Extras">
-          <span class="slider"></span>
-        </span>
-      </label>
-      <div class="input-group">
-        <label>Horas Mensais Base (CLT)</label>
-        <input id="horasBase" type="number" min="1" value="220" oninput="state.horasBase=Number(this.value)||220; calcularRenda()">
-      </div>
-    </div>
-
-    <div class="sidebar-section">
-      <label style="margin-bottom:10px">Dados & Backup</label>
-      <button class="menu-action" onclick="exportarExcel()"><i class="fa-solid fa-file-csv"></i> Exportar CSV</button>
-      <button class="menu-action" onclick="baixarBackup()"><i class="fa-solid fa-download"></i> Baixar Arquivo</button>
-      <button class="menu-action" onclick="$('fileInput').click()"><i class="fa-solid fa-upload"></i> Restaurar Arquivo</button>
-      <input type="file" id="fileInput" style="display:none" onchange="restaurarBackup(this)" accept=".json">
-    </div>
-    
-    <div class="sidebar-section">
-      <label style="margin-bottom:10px">Relatórios (Projeção)</label>
-      <button class="menu-action" onclick="gerarRelatorio()"><i class="fa-solid fa-file-pdf"></i> Gerar Relatório PDF</button>
-      <div class="input-group">
-        <label>Simulador de Extras (h)</label>
-        <input id="simuladorHe" type="number" min="0" placeholder="0" oninput="simularExtras(this.value)">
-        <div style="font-size:0.8rem; margin-top:5px; color:var(--cat-extra);" id="simulacaoOutput"></div>
-      </div>
-    </div>
-    
-    <div style="margin-top:auto; font-size:11px; color:var(--muted); text-align:center">Gestor v10 - Dados Locais</div>
-  </aside>
-
-  <header>
-    <div class="header-content">
-      <button class="menu-btn" onclick="toggleMenu()" aria-label="Abrir Menu">
-        <i class="fa-solid fa-bars"></i>
-      </button>
-      <div class="brand">Gestor Financeiro</div>
-    </div>
-  </header>
-
-  <main class="wrap">
-    <div class="grid">
-      
-      <section>
-        <div class="card">
-          <h3><i class="fa-solid fa-wallet"></i> Renda Mensal</h3>
-
-          <div class="input-group">
-            <label for="piso">
-              Piso Salarial (Bruto)
-              <span class="tooltip"><i class="fa-solid fa-circle-info"></i><span class="tooltip-text">Valor base do seu salário antes de descontos.</span></span>
-            </label>
-            <input id="piso" type="number" value="2306.08" inputmode="decimal" aria-label="Piso Salarial Bruto">
-           </div>
-
-          <div class="input-group">
-            <label for="ticket">Ticket Alimentação (VR / VA)</label>
-            <input id="ticket" type="number" value="410" inputmode="decimal" aria-label="Ticket Alimentação">
-          </div>
-
-          <div class="row">
-            <div class="input-group">
-              <label for="heDom">Horas Extras (100%)</label>
-              <input id="heDom" type="number" value="6" inputmode="decimal" oninput="state.horasExtras.horasDomingo=Number(this.value)||0; calcularRenda()" aria-label="Total de Horas Extras a 100%">
-            </div>
-
-            <div class="input-group">
-              <label for="valorHora">Valor Hora (Normal)</label>
-              <input id="valorHora" type="number" value="0" inputmode="decimal" readonly aria-label="Valor da Hora Normal">
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="input-group">
-              <label for="faltasNJ">Faltas Não Justificadas (dias)</label>
-              <input id="faltasNJ" type="number" min="0" placeholder="0" oninput="state.descontos.faltasNJ=Number(this.value)||0; calcularRenda()" aria-label="Faltas Não Justificadas">
-            </div>
-            <div class="input-group">
-              <label for="faltasJ">Faltas Justificadas (dias)</label>
-              <input id="faltasJ" type="number" min="0" placeholder="0" oninput="state.descontos.faltasJ=Number(this.value)||0; calcularRenda()" aria-label="Faltas Justificadas">
-            </div>
-          </div>
-          <div class="row">
-            <div class="input-group">
-              <label for="atrasos">Atrasos (horas)</label>
-              <input id="atrasos" type="number" min="0" placeholder="0" oninput="state.descontos.atrasos=Number(this.value)||0; calcularRenda()" aria-label="Horas de Atraso">
-            </div>
-            <div class="input-group">
-              <label for="outrosDesc">Outros Descontos</label>
-              <input id="outrosDesc" type="number" min="0" placeholder="0" oninput="state.descontos.outros=Number(this.value)||0; calcularRenda()" aria-label="Outros Descontos">
-            </div>
-          </div>
-
-          <button onclick="calcularRenda()" class="action-btn btn-primary" style="margin-bottom:15px;" aria-label="Calcular Renda Mensal">
-            <i class="fa-solid fa-calculator"></i> Calcular Renda
-          </button>
-
-          <div class="table-scroll" style="margin-bottom:15px; border:none; box-shadow:none;">
-            <table class="descontos-table">
-              <thead><tr><td colspan="2" style="font-weight:700; color:var(--primary); padding-bottom:0">Resumo de Descontos</td></tr></thead>
-              <tbody id="tabDescontos">
-                <tr><td>Faltas Não Justificadas</td><td class="desconto-valor">-</td></tr>
-                <tr><td>Atrasos</td><td class="desconto-valor">-</td></tr>
-                <tr><td>Outros Descontos</td><td class="desconto-valor">-</td></tr>
-                <tr style="border-top:1px solid var(--border)"><td style="font-weight:700">Total Descontos</td><td class="desconto-valor" id="totalDescontos">-</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="input-group">
-            <label for="salario">Salário Líquido (Base)</label>
-            <input id="salario" type="number" placeholder="0,00" inputmode="decimal" readonly aria-label="Salário Líquido Calculado">
-          </div>
-
-          <div class="input-group">
-            <label for="aluguel">Aluguel (Fixo - Necessidade)</label>
-            <input id="aluguel" type="number" placeholder="0,00" inputmode="decimal" aria-label="Custo Fixo de Aluguel">
-          </div>
-          
-          <div style="font-size:13px; margin-top:5px; display:flex; align-items:center; gap:6px">
-            <input id="incluirVr" type="checkbox" style="width:auto" onchange="calcularRenda()" aria-label="Incluir VR/VA na Renda Total"> Somar VR/VA na renda total (Entrada)
-          </div>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <span>CONFIGURAÇÕES ✨</span>
+            <button class="close-menu" onclick="toggleMenu()">&times;</button>
         </div>
 
-        <div class="card">
-          <h3><i class="fa-solid fa-bolt"></i> Contas (Fixas/Variáveis)</h3>
-          <form onsubmit="event.preventDefault(); addVariavel();">
-            <div class="input-group"><label>Descrição</label><input id="descVar" placeholder="Ex: Luz, Internet" required aria-label="Descrição da Conta Fixa/Variável"></div>
-            <div class="row">
-              <div class="input-group"><label>Valor</label><input id="valorVar" type="number" step="0.01" placeholder="0,00" required inputmode="decimal" aria-label="Valor da Conta"></div>
-              <div class="input-group"><label>Categoria</label><select id="catVar" aria-label="Categoria da Conta"></select></div>
+        <div class="sidebar-content">
+            <div class="sidebar-section">
+                <label>METAS DE GASTOS (%)</label>
+                <div class="input-group">
+                    <label>Necessidades (%)</label>
+                    <input type="number" id="metaN" value="50">
+                </div>
+                <div class="input-group">
+                    <label>Desejos (%)</label>
+                    <input type="number" id="metaD" value="30">
+                </div>
+                <div class="input-group">
+                    <label>Poupança (%)</label>
+                    <input type="number" id="metaS" value="20">
+                </div>
             </div>
-            <button type="submit" class="action-btn btn-primary" aria-label="Adicionar Conta"><i class="fa-solid fa-plus"></i> Adicionar</button>
-          </form>
-          <div class="table-scroll" style="margin-top:20px; max-height:200px; overflow-y:auto">
-            <table id="tabVar"></table>
-          </div>
-        </div>
 
-        <div class="card">
-          <h3><i class="fa-solid fa-basket-shopping"></i> Gastos Diários</h3>
-          <form onsubmit="event.preventDefault(); addGasto();">
-            <div class="input-group"><label>Descrição</label><input id="gDesc" placeholder="Ex: Café, Uber" required aria-label="Descrição do Gasto Diário"></div>
-            <div class="row">
-              <div class="input-group"><label>Valor</label><input id="gVal" type="number" step="0.01" placeholder="0,00" required inputmode="decimal" aria-label="Valor do Gasto Diário"></div>
-              <div class="input-group"><label>Categoria</label><select id="gCat" aria-label="Categoria do Gasto"></select></div>
+            <div class="sidebar-section">
+                <label>SIMULADOR DOMINGOS (100%)</label>
+                <p style="font-size: 10px; color: var(--muted); margin-bottom: 8px;">Jornada das 07h às 13h (6 horas)</p>
+                <input id="simDomingos" type="number" placeholder="Quantos domingos trabalhados?">
+                <div id="resDomingos" style="margin-top: 10px; font-size: 0.85rem; line-height: 1.4;"></div>
             </div>
-            <button type="submit" class="action-btn btn-sec" aria-label="Registrar Gasto"><i class="fa-solid fa-plus"></i> Registrar</button>
-          </form>
-          <div class="table-scroll" style="margin-top:20px; max-height:300px; overflow-y:auto">
-            <table id="tabHist"></table>
-          </div>
-        </div>
-      </section>
 
-      <section>
-        <div class="card" style="position:sticky; top:80px">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-            <h3><i class="fa-solid fa-chart-pie"></i> Resumo</h3>
-            <span id="ultima" style="font-size:10px; color:var(--muted)"></span>
-          </div>
-
-          <div class="stats-row">
-            <div class="stat-box">
-              <div class="stat-label">Entrou</div>
-              <div class="stat-value val-green" id="tTotal">-</div>
+            <div class="sidebar-section">
+                <button class="menu-action" onclick="baixarBackup()"><i class="fa-solid fa-download"></i> Salvar Backup</button>
+                <input type="file" id="fileInput" style="display:none" onchange="restaurarBackup(this)">
+                <button class="menu-action" onclick="$('fileInput').click()"><i class="fa-solid fa-upload"></i> Restaurar Dados</button>
             </div>
-            <div class="stat-box">
-              <div class="stat-label">Saiu</div>
-              <div class="stat-value val-red" id="tGastos">-</div>
+        </div>
+    </aside>
+
+    <header class="no-print">
+        <div class="header-content">
+            <div class="header-left">
+                <button class="menu-btn" onclick="toggleMenu()"><i class="fa-solid fa-bars"></i></button>
+                <span class="brand">Gestor V10</span>
             </div>
-          </div>
-          <div class="stat-box" style="margin-bottom:20px; background:var(--primary); border:none">
-            <div class="stat-label" style="color:rgba(255,255,255,0.7)">Saldo Restante</div>
-            <div class="stat-value" id="tSobra" style="font-size:1.4rem; color:#fff">-</div>
-          </div>
-
-          <div class="metrics-section">
-            <div class="metric-row"><span class="metric-label">Salário Bruto</span> <span class="metric-value" id="mBruto">-</span></div>
-            <div class="metric-row"><span class="metric-label">Total Descontos</span> <span class="metric-value val-red" id="mDescontos">-</span></div>
-            <div class="metric-row"><span class="metric-label">Salário Líquido (Base)</span> <span class="metric-value" id="mLiquidoBase">-</span></div>
-            <div class="metric-row"><span class="metric-label">Ganho Horas Extras (100%)</span> <span class="metric-value" id="mExtra">-</span></div>
-            <div class="metric-row"><span class="metric-label">Valor Hora (Adicional 100%)</span> <span class="metric-value" id="mValorHe">-</span></div>
-            <div class="metric-row"><span class="metric-label">VR/VA (não incluído na Renda)</span> <span class="metric-value" id="mVrImpacto">-</span></div>
-            <div class="metric-row" style="margin-top:10px;"><span class="metric-label">Renda Mensal Total</span> <span class="metric-value metric-total val-green" id="mRendaTotal">-</span></div>
-            <div class="metric-row" style="border-bottom:none;"><span class="metric-label">Projeção Anual</span> <span class="metric-value metric-total" id="mAnual">-</span></div>
-          </div>
-
-          <div class="chart-wrap"><canvas id="financeChart"></canvas></div>
-
-          <div class="progress-group">
-            <div class="progress-info"><span style="color:var(--cat-n)">Necess. (<span id="lblN">50</span>%)</span> <span id="txtN"></span></div>
-            <div class="progress-bg"><div id="barN" class="progress-fill fill-n"></div></div>
-            <div style="font-size:0.75rem; color:var(--muted); margin-top:3px" id="alertaN"></div>
-          </div>
-          <div class="progress-group">
-            <div class="progress-info"><span style="color:var(--cat-d)">Desejos (<span id="lblD">30</span>%)</span> <span id="txtD"></span></div>
-            <div class="progress-bg"><div id="barD" class="progress-fill fill-d"></div></div>
-            <div style="font-size:0.75rem; color:var(--muted); margin-top:3px" id="alertaD"></div>
-          </div>
-          <div class="progress-group">
-            <div class="progress-info"><span style="color:var(--cat-s)">Poup. (<span id="lblS">20</span>%)</span> <span id="txtS"></span></div>
-            <div class="progress-bg"><div id="barS" class="progress-fill fill-s"></div></div>
-            <div style="font-size:0.75rem; color:var(--muted); margin-top:3px" id="alertaS"></div>
-          </div>
-
-          <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border)">
-            <button class="action-btn btn-primary" style="background:var(--primary)" onclick="fecharMes()" aria-label="Fechar e Arquivar Mês Atual">
-              <i class="fa-solid fa-lock"></i> Fechar Mês Atual
-            </button>
-          </div>
+            <div class="header-right">
+                <input type="month" id="mesReferencia" class="date-input" onchange="mudarMes()">
+            </div>
         </div>
+    </header>
 
-        <div class="card">
-          <h3><i class="fa-solid fa-clock-rotate-left"></i> Histórico</h3>
-          <div id="listaHistorico" style="font-size:13px; color:var(--muted); text-align:center">Vazio.</div>
-        </div>
-      </section>
-
+    <div class="print-only report-header">
+        <h3 id="print-mes"></h3>
     </div>
-  </main>
 
-<script src="scripts.js"></script> 
+    <main class="wrap">
+        <div class="grid">
+            
+            <section class="left-col">
+                <div class="card no-print">
+                    <h3><i class="fa-solid fa-id-card"></i> Configurações Base</h3>
+                    <div class="row">
+                        <div class="input-group">
+                            <label>Piso Salarial (220h)</label>
+                            <input id="piso" type="number" value="2306.08">
+                        </div>
+                        <div class="input-group">
+                            <label>Ticket (Mensal)</label>
+                            <input id="ticket" type="number" value="410">
+                        </div>
+                    </div>
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 600; color: var(--primary-dark); cursor: pointer;">
+                        <input id="incluirVr" type="checkbox"> Somar Ticket na Renda Disponível
+                    </label>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fa-solid fa-receipt"></i> Entradas Reais</h3>
+                    <div class="row">
+                        <div class="input-group">
+                            <label>Adiantamento (40%)</label>
+                            <input id="manualDia20" type="number" placeholder="Valor dia 20">
+                        </div>
+                        <div class="input-group">
+                            <label>Pagamento (60%)</label>
+                            <input id="manualDia05" type="number" placeholder="Valor dia 05">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fa-solid fa-house-chimney"></i> Contas Fixas</h3>
+                    <div class="input-group">
+                        <label>Aluguel / Fixos Principais</label>
+                        <input id="aluguel" type="number" placeholder="0,00">
+                    </div>
+                    <form class="no-print" onsubmit="event.preventDefault(); addVariavel();">
+                        <div class="row">
+                            <div class="input-group"><label>Descrição</label><input id="descVar" placeholder="Ex: Luz, Internet"></div>
+                            <div class="input-group"><label>Valor</label><input id="valorVar" type="number" step="0.01"></div>
+                        </div>
+                        <div class="input-group"><label>Categoria</label><select id="catVar"></select></div>
+                        <button type="submit" class="btn-add">Adicionar Conta</button>
+                    </form>
+                    <div class="table-container">
+                        <table id="tabVar"></table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fa-solid fa-cart-shopping"></i> Gastos Diários</h3>
+                    <form class="no-print" onsubmit="event.preventDefault(); addGasto();">
+                        <div class="row" style="grid-template-columns: 80px 1fr 1fr;">
+                            <div class="input-group">
+                                <label>Dia</label>
+                                <input id="gDia" type="number" placeholder="01" min="1" max="31">
+                            </div>
+                            <div class="input-group">
+                                <label>Descrição</label>
+                                <input id="gDesc" placeholder="Ex: Mercado">
+                            </div>
+                            <div class="input-group">
+                                <label>Valor</label>
+                                <input id="gVal" type="number" step="0.01">
+                            </div>
+                        </div>
+                        <div class="input-group"><label>Categoria</label><select id="gCat"></select></div>
+                        <button type="submit" class="btn-add secondary">Registrar Gasto</button>
+                    </form>
+                    <div class="table-container">
+                        <table id="tabHist"></table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="right-col">
+                <div class="card sticky-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3><i class="fa-solid fa-chart-line"></i> Resumo</h3>
+                        <button class="btn-pdf no-print" onclick="gerarPDF()"><i class="fa-solid fa-file-pdf"></i></button>
+                    </div>
+                    
+                    <div class="summary-grid">
+                        <div class="sum-box"><small>Recebido</small><br><strong class="txt-green" id="tTotal">R$ 0,00</strong></div>
+                        <div class="sum-box"><small>Despesas</small><br><strong class="txt-red" id="tGastos">R$ 0,00</strong></div>
+                    </div>
+
+                    <div class="main-balance">
+                        <small>SALDO LIVRE ✨</small>
+                        <h2 id="tSobra">R$ 0,00</h2>
+                    </div>
+
+                    <div class="chart-container no-print" style="height: 200px; margin-bottom: 20px;">
+                        <canvas id="financeChart"></canvas>
+                    </div>
+
+                    <div class="progress-section">
+                        <div class="prog-item">
+                            <div class="prog-info"><span>Necessidades</span> <b id="txtN"></b></div>
+                            <div class="prog-bar"><div id="barN" class="fill fill-n"></div></div>
+                        </div>
+                        <div class="prog-item">
+                            <div class="prog-info"><span>Desejos</span> <b id="txtD"></b></div>
+                            <div class="prog-bar"><div id="barD" class="fill fill-d"></div></div>
+                        </div>
+                        <div class="prog-item">
+                            <div class="prog-info"><span>Reserva</span> <b id="txtS"></b></div>
+                            <div class="prog-bar"><div id="barS" class="fill fill-s"></div></div>
+                        </div>
+                    </div>
+
+                    <button class="btn-archive no-print" style="margin-top: 20px;" onclick="arquivarMes()">Fechar Mês</button>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fa-solid fa-folder-open"></i> Meses Arquivados</h3>
+                    <div id="listaHistorico" class="history-list"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+   
+    <script src="scripts.js"></script>
 </body>
 </html>

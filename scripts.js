@@ -1,614 +1,231 @@
 const $ = id => document.getElementById(id);
-const fmt = v => Number(v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+const fmt = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const idGen = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
 
-// --- ESTADO INICIAL DO APLICATIVO ---
+// ESTRUTURA DE DADOS
 let state = {
-  salario:0, vr:0, incluirVr:false, aluguel:0,
-  config: { n: 50, d: 30, s: 20 },
-  horasBase: 220, 
-  variaveis:[], gastos:[], historico:[], updated: null,
-  descontos: { faltasNJ: 0, faltasJ: 0, atrasos: 0, outros: 0 }, 
-  horasExtras: {
-    horasDomingo: 6, 
-    valorHora: 0,
-    ganhoDomingo: 0,
-    ativo: false 
-  }
-};
-
-const CATEGORIAS = {
-  n: { name: 'Necessidades', color: '#ef4444' },
-  d: { name: 'Desejos', color: '#f59e0b' },
-  s: { name: 'Poupança', color: '#10b981' },
+    mesAtivo: new Date().toISOString().slice(0, 7),
+    dadosPorMes: {}, 
+    historicoArquivado: [],
+    config: { piso: 2306.08, ticket: 410, incluirVr: false, metaN: 50, metaD: 30, metaS: 20 }
 };
 
 let myChart = null;
 
+// MAPA DE ÍCONES PARA CATEGORIAS
+const icones = { n: '🏠', d: '🛍️', s: '💰' };
 
-// --- FUNÇÕES GERAIS DE UTILIDADE ---
-
-function salvar() {
-  state.updated = new Date().toISOString();
-  localStorage.setItem('financeState', JSON.stringify(state));
-  render();
-}
-
-function carregar() {
-  const savedState = localStorage.getItem('financeState');
-  if (savedState) {
-    state = JSON.parse(savedState);
-    state.horasExtras = state.horasExtras || { horasDomingo: 6, valorHora: 0, ganhoDomingo: 0, ativo: false };
-    state.descontos = state.descontos || { faltasNJ: 0, faltasJ: 0, atrasos: 0, outros: 0 };
+// INICIALIZAÇÃO
+document.addEventListener('DOMContentLoaded', () => {
+    const categorias = `
+        <option value="n">Necessidades</option>
+        <option value="d">Desejos</option>
+        <option value="s">Poupança</option>
+    `;
+    if($("catVar")) $("catVar").innerHTML = categorias;
+    if($("gCat")) $("gCat").innerHTML = categorias;
     
-  }
-  
-  // Preenche inputs com o estado salvo
-  $("piso").value = state.salario;
-  $("ticket").value = state.vr;
-  $("aluguel").value = state.aluguel;
-  $("incluirVr").checked = state.incluirVr;
-  $("heDom").value = state.horasExtras.horasDomingo;
-  $("heAtivo").checked = state.horasExtras.ativo;
-  $("horasBase").value = state.horasBase;
-  
-  $("metaN").value = state.config.n;
-  $("metaD").value = state.config.d;
-  $("metaS").value = state.config.s;
+    carregarTudo();
+    
+    // Listeners de Configuração
+    ["piso", "ticket", "incluirVr", "metaN", "metaD", "metaS"].forEach(id => {
+        $(id)?.addEventListener('change', () => {
+            atualizarConfig();
+            calcularRenda();
+        });
+    });
 
-  $("faltasNJ").value = state.descontos.faltasNJ;
-  $("faltasJ").value = state.descontos.faltasJ;
-  $("atrasos").value = state.descontos.atrasos;
-  $("outrosDesc").value = state.descontos.outros;
+    ["manualDia20", "manualDia05", "aluguel"].forEach(id => {
+        $(id)?.addEventListener('input', calcularRenda);
+    });
+});
 
-  // Carrega Modo Escuro
-  const darkMode = localStorage.getItem('darkMode') === 'true';
-  document.body.classList.toggle('dark-mode', darkMode);
-  $("darkModeToggle").checked = darkMode;
-
-
-  // Inicializa
-  calcularRenda();
-  render();
+function mudarMes() {
+    state.mesAtivo = $("mesReferencia").value;
+    if (!state.dadosPorMes[state.mesAtivo]) {
+        state.dadosPorMes[state.mesAtivo] = { vale: 0, saldo: 0, aluguel: 0, variaveis: [], gastos: [] };
+    }
+    const d = state.dadosPorMes[state.mesAtivo];
+    $("manualDia20").value = d.vale || "";
+    $("manualDia05").value = d.saldo || "";
+    $("aluguel").value = d.aluguel || "";
+    calcularRenda();
 }
 
 function calcularRenda() {
-  // 1. Coleta e Atualiza Estado da Renda
-  const pisoBruto = Number($("piso").value) || 0;
-  const ticket = Number($("ticket").value) || 0;
-  const aluguel = Number($("aluguel").value) || 0;
-  const incluirVr = $("incluirVr").checked;
-  const horasMensaisBase = Number(state.horasBase || 220);
+    const mes = state.mesAtivo;
+    const d = state.dadosPorMes[mes];
 
-  state.salario = pisoBruto;
-  state.vr = ticket;
-  state.aluguel = aluguel;
-  state.incluirVr = incluirVr;
+    d.vale = Number($("manualDia20").value);
+    d.saldo = Number($("manualDia05").value);
+    d.aluguel = Number($("aluguel").value);
 
+    let rendaTotal = d.vale + d.saldo;
+    if (state.config.incluirVr) rendaTotal += state.config.ticket;
 
-  // 2. Cálculo do Valor por Hora e Extras
-  const valorHoraNormal = pisoBruto / horasMensaisBase;
-  const valorHoraExtra = valorHoraNormal * 2; // 100% adicional
+    const somaCat = (cat) => {
+        const fixos = d.variaveis.filter(v => v.categoria === cat).reduce((a, b) => a + b.valor, 0);
+        const diarios = d.gastos.filter(g => g.categoria === cat).reduce((a, b) => a + b.valor, 0);
+        return (cat === 'n' ? d.aluguel : 0) + fixos + diarios;
+    };
 
-  $("valorHora").value = valorHoraNormal.toFixed(2);
-  state.horasExtras.valorHora = valorHoraNormal;
-  state.horasExtras.horasDomingo = Number($("heDom").value) || 0;
+    const tN = somaCat('n'), tD = somaCat('d'), tS = somaCat('s');
+    const totalGeral = tN + tD + tS;
+    const saldoLivre = rendaTotal - totalGeral;
 
-  let ganhoExtra = 0;
-  if (state.horasExtras.ativo) {
-    ganhoExtra = state.horasExtras.horasDomingo * valorHoraExtra;
-  }
-  state.horasExtras.ganhoDomingo = ganhoExtra;
-
-  // 3. Cálculo de Descontos (Faltas/Atrasos/Outros)
-  const faltasNJ = state.descontos.faltasNJ || 0;
-  const atrasos = state.descontos.atrasos || 0;
-  const outrosDesc = state.descontos.outros || 0;
-
-  const descontoFaltas = faltasNJ * 8 * valorHoraNormal; 
-  const descontoAtrasos = atrasos * valorHoraNormal;
-  const totalDescontosR = descontoFaltas + descontoAtrasos + outrosDesc;
-
-  // 4. Determina Salário Líquido (Base)
-  const salarioLiquidoBase = pisoBruto - totalDescontosR;
-  $("salario").value = salarioLiquidoBase.toFixed(2);
-  
-  // 5. Determina Renda Total (para orçamento)
-  let rendaTotal = salarioLiquidoBase + ganhoExtra;
-  if (incluirVr) {
-    rendaTotal += ticket;
-  }
-  
-  // 6. Atualiza Métricas (Resumo)
-  const totalGastos = calcularGastosTotal();
-  const saldoRestante = rendaTotal - totalGastos;
-  
-  // Atualiza DOM
-  $("tTotal").textContent = fmt(rendaTotal);
-  $("tGastos").textContent = fmt(totalGastos);
-  $("tSobra").textContent = fmt(saldoRestante);
-  
-  // Atualiza Tabela de Descontos
-  let htmlDesc = `
-    <tr><td>Faltas Não Justificadas (${faltasNJ}d)</td><td class="desconto-valor">${fmt(descontoFaltas)}</td></tr>
-    <tr><td>Atrasos (${atrasos}h)</td><td class="desconto-valor">${fmt(descontoAtrasos)}</td></tr>
-    <tr><td>Outros Descontos</td><td class="desconto-valor">${fmt(outrosDesc)}</td></tr>
-    <tr style="border-top:1px solid var(--border)"><td style="font-weight:700">Total Descontos</td><td class="desconto-valor" id="totalDescontos">${fmt(totalDescontosR)}</td></tr>
-  `;
-  $("tabDescontos").innerHTML = htmlDesc;
-
-  // Atualiza Resumo de Métricas
-  $("mBruto").textContent = fmt(pisoBruto);
-  $("mDescontos").textContent = fmt(totalDescontosR);
-  $("mLiquidoBase").textContent = fmt(salarioLiquidoBase);
-  $("mExtra").textContent = fmt(ganhoExtra);
-  $("mValorHe").textContent = fmt(valorHoraExtra);
-  $("mVrImpacto").textContent = fmt(ticket);
-  $("mRendaTotal").textContent = fmt(rendaTotal);
-  $("mAnual").textContent = fmt(rendaTotal * 12);
-  
-  salvar();
-  calcular();
-}
-
-function calcularGastosTotal() {
-  const totalVar = state.variaveis.reduce((acc, curr) => acc + curr.valor, 0);
-  const totalGastos = state.gastos.reduce((acc, curr) => acc + curr.valor, 0);
-  const totalAluguel = state.aluguel;
-  return totalVar + totalGastos + totalAluguel;
-}
-
-function calcular() {
-  // Atualiza metas
-  state.config.n = Number($("metaN").value) || 0;
-  state.config.d = Number($("metaD").value) || 0;
-  state.config.s = Number($("metaS").value) || 0;
-
-  const somaMetas = state.config.n + state.config.d + state.config.s;
-  $("sumCheck").textContent = `Total: ${somaMetas}%`;
-  $("sumCheck").style.color = somaMetas === 100 ? CATEGORIAS.s.color : CATEGORIAS.n.color;
-
-  $("lblN").textContent = state.config.n;
-  $("lblD").textContent = state.config.d;
-  $("lblS").textContent = state.config.s;
-
-  const rendaTotal = Number($("mRendaTotal").textContent.replace(/[R$.,]/g, '').replace(',', '.') / 100) || 0;
-  if (rendaTotal === 0) {
-    // Evita divisão por zero
-    renderChart({n:0, d:0, s:0}); 
-    return {n:0, d:0, s:0};
-  }
-  
-  const metas = {
-    n: (rendaTotal * state.config.n) / 100,
-    d: (rendaTotal * state.config.d) / 100,
-    s: (rendaTotal * state.config.s) / 100,
-  };
-
-  const gastosPorCat = { n: state.aluguel, d: 0, s: 0 };
-
-  state.variaveis.forEach(item => gastosPorCat[item.categoria] += item.valor);
-  state.gastos.forEach(item => gastosPorCat[item.categoria] += item.valor);
-
-  // --- Renderização das Barras de Progresso ---
-  Object.keys(gastosPorCat).forEach(cat => {
-    const meta = metas[cat];
-    const gasto = gastosPorCat[cat];
-    const percentualGasto = (gasto / meta) * 100;
-    
-    $(cat === 'n' ? 'txtN' : cat === 'd' ? 'txtD' : 'txtS').textContent = `${fmt(gasto)} / ${fmt(meta)}`;
-    $(cat === 'n' ? 'barN' : cat === 'd' ? 'barD' : 'barS').style.width = `${Math.min(100, percentualGasto)}%`;
-
-    const alerta = $(cat === 'n' ? 'alertaN' : cat === 'd' ? 'alertaD' : 'alertaS');
-    if (gasto > meta) {
-      const excesso = gasto - meta;
-      alerta.textContent = `🚨 Você excedeu a meta em ${fmt(excesso)}!`;
-      alerta.style.color = CATEGORIAS.n.color;
-    } else {
-      const restante = meta - gasto;
-      alerta.textContent = `Restante: ${fmt(restante)}`;
-      alerta.style.color = CATEGORIAS.muted;
+    // CORES DINÂMICAS DO SALDO
+    const cardSaldo = document.querySelector('.main-balance');
+    if (cardSaldo) {
+        if (saldoLivre < 0) cardSaldo.style.background = "var(--primary-dark)"; 
+        else if (rendaTotal > 0 && saldoLivre < (rendaTotal * 0.15)) cardSaldo.style.background = "var(--primary)";
+        else cardSaldo.style.background = "var(--cat-s)";
     }
-  });
 
-  renderChart(gastosPorCat);
-  salvar();
-  return gastosPorCat;
+    $("tTotal").textContent = fmt(rendaTotal);
+    $("tGastos").textContent = fmt(totalGeral);
+    $("tSobra").textContent = fmt(saldoLivre);
+
+    atualizarBarras(rendaTotal, tN, tD, tS);
+    renderizarGrafico(tN, tD, tS);
+    renderizarListas();
+    salvarNoStorage();
+    simularDomingos($("simDomingos").value);
 }
 
-// --- FUNÇÕES DE MANIPULAÇÃO DE TRANSAÇÕES ---
+function atualizarBarras(renda, n, d, s) {
+    const metas = [
+        { id: 'N', valor: n, metaPerc: state.config.metaN },
+        { id: 'D', valor: d, metaPerc: state.config.metaD },
+        { id: 'S', valor: s, metaPerc: state.config.metaS }
+    ];
+    metas.forEach(m => {
+        const valorMeta = (renda * m.metaPerc) / 100;
+        if (renda > 0) {
+            const prog = (m.valor / valorMeta) * 100;
+            $(`txt${m.id}`).textContent = `${fmt(m.valor)} / ${fmt(valorMeta)}`;
+            $(`bar${m.id}`).style.width = Math.min(100, prog) + "%";
+            $(`bar${m.id}`).style.background = prog > 100 ? 'var(--primary-dark)' : ''; 
+        } else {
+            $(`txt${m.id}`).textContent = `${fmt(m.valor)} / R$ 0,00`;
+            $(`bar${m.id}`).style.width = "0%";
+        }
+    });
+}
+
+function simularDomingos(qtd) {
+    const piso = Number($("piso").value) || 0;
+    const ganho = (piso / 220 * 2) * 6;
+    const res = $("resDomingos");
+    if(res) res.innerHTML = qtd > 0 ? `1 Domingo: <strong>${fmt(ganho)}</strong><br>Total: <span style="color:var(--cat-s)">${fmt(qtd * ganho)}</span>` : "";
+}
 
 function addVariavel() {
-  const desc = $("descVar").value;
-  const valor = Number($("valorVar").value);
-  const cat = $("catVar").value;
-
-  if (desc && valor > 0 && cat) {
-    state.variaveis.push({ id: idGen(), desc, valor, categoria: cat, tipo: 'Variável', date: new Date().toISOString() });
-    $("descVar").value = "";
-    $("valorVar").value = "";
-    salvar();
+    const valor = Number($("valorVar").value);
+    if (!valor) return;
+    state.dadosPorMes[state.mesAtivo].variaveis.push({
+        id: idGen(), desc: $("descVar").value, valor: valor, categoria: $("catVar").value
+    });
+    $("descVar").value = ""; $("valorVar").value = "";
     calcularRenda();
-  } else {
-    alert("Preencha todos os campos corretamente para Contas.");
-  }
-}
-
-function removeVariavel(id) {
-  state.variaveis = state.variaveis.filter(item => item.id !== id);
-  salvar();
-  calcularRenda();
 }
 
 function addGasto() {
-  const desc = $("gDesc").value;
-  const valor = Number($("gVal").value);
-  const cat = $("gCat").value;
-
-  if (desc && valor > 0 && cat) {
-    state.gastos.push({ id: idGen(), desc, valor, categoria: cat, tipo: 'Gasto Diário', date: new Date().toISOString() });
-    $("gDesc").value = "";
-    $("gVal").value = "";
-    salvar();
+    const valor = Number($("gVal").value);
+    const dia = $("gDia").value || "00";
+    if (!valor) return;
+    state.dadosPorMes[state.mesAtivo].gastos.push({
+        id: idGen(), dia: dia.padStart(2, '0'), desc: $("gDesc").value, valor: valor, categoria: $("gCat").value
+    });
+    $("gDia").value = ""; $("gDesc").value = ""; $("gVal").value = "";
+    state.dadosPorMes[state.mesAtivo].gastos.sort((a, b) => a.dia - b.dia);
     calcularRenda();
-  } else {
-    alert("Preencha todos os campos corretamente para Gastos Diários.");
-  }
 }
 
-function removeGasto(id) {
-  state.gastos = state.gastos.filter(item => item.id !== id);
-  salvar();
-  calcularRenda();
+function removerItem(lista, id) {
+    state.dadosPorMes[state.mesAtivo][lista] = state.dadosPorMes[state.mesAtivo][lista].filter(i => i.id !== id);
+    calcularRenda();
 }
 
-// --- FUNÇÕES DE RENDERIZAÇÃO DO DOM ---
+function renderizarListas() {
+    const d = state.dadosPorMes[state.mesAtivo];
+    const row = (item, lista) => `
+        <tr>
+            ${item.dia ? `<td>${item.dia}</td>` : ''}
+            <td>${icones[item.categoria] || ''} ${item.desc}</td>
+            <td>${fmt(item.valor)}</td>
+            <td class="no-print" style="text-align:right"><button onclick="removerItem('${lista}','${item.id}')" class="btn-icon">&times;</button></td>
+        </tr>`;
 
-function renderTabVariavel() {
-  const table = $("tabVar");
-  if (state.variaveis.length === 0) {
-    table.innerHTML = "<tr><td colspan='4' style='text-align:center; color:var(--muted)'>Nenhuma conta fixa/variável registrada.</td></tr>";
-    return;
-  }
-  
-  let html = "<thead><tr><td>Descrição</td><td>Categoria</td><td>Valor</td><td>Ação</td></tr></thead><tbody>";
-  state.variaveis.sort((a, b) => a.desc.localeCompare(b.desc)).forEach(item => {
-    const catData = CATEGORIAS[item.categoria];
-    html += `
-      <tr>
-        <td>${item.desc}</td>
-        <td style="color:${catData.color}; font-weight:600">${catData.name}</td>
-        <td>${fmt(item.valor)}</td>
-        <td style="text-align:center">
-          <button class="btn-icon btn-danger" onclick="removeVariavel('${item.id}')" aria-label="Remover Conta">
-            <i class="fa-solid fa-trash-can"></i>
-          </button>
-        </td>
-      </tr>
-    `;
-  });
-  html += `<tr><td colspan="2" style="font-weight:700">Total</td><td style="font-weight:700">${fmt(state.variaveis.reduce((acc, curr) => acc + curr.valor, 0))}</td><td></td></tr>`;
-  html += "</tbody>";
-  table.innerHTML = html;
+    $("tabVar").innerHTML = d.variaveis.map(i => row(i, 'variaveis')).join('');
+    $("tabHist").innerHTML = d.gastos.map(i => row(i, 'gastos')).join('');
+    $("listaHistorico").innerHTML = state.historicoArquivado.map(h => `<div class="hist-item"><span>${h.mes}</span> <b>${fmt(h.valor)}</b></div>`).join('');
 }
 
-function renderTabGasto() {
-  const table = $("tabHist");
-  if (state.gastos.length === 0) {
-    table.innerHTML = "<tr><td colspan='4' style='text-align:center; color:var(--muted)'>Nenhum gasto diário registrado.</td></tr>";
-    return;
-  }
-  
-  let html = "<thead><tr><td>Data</td><td>Descrição</td><td>Valor</td><td>Ação</td></tr></thead><tbody>";
-  state.gastos.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
-    const catData = CATEGORIAS[item.categoria];
-    const date = new Date(item.date).toLocaleDateString('pt-BR');
-    html += `
-      <tr>
-        <td>${date}</td>
-        <td>${item.desc}<span class="t-meta" style="color:${catData.color}">${catData.name}</span></td>
-        <td>${fmt(item.valor)}</td>
-        <td style="text-align:center">
-          <button class="btn-icon btn-danger" onclick="removeGasto('${item.id}')" aria-label="Remover Gasto">
-            <i class="fa-solid fa-trash-can"></i>
-          </button>
-        </td>
-      </tr>
-    `;
-  });
-  html += `<tr><td colspan="2" style="font-weight:700">Total</td><td style="font-weight:700">${fmt(state.gastos.reduce((acc, curr) => acc + curr.valor, 0))}</td><td></td></tr>`;
-  html += "</tbody>";
-  table.innerHTML = html;
-}
-
-function renderSelects() {
-  const options = Object.keys(CATEGORIAS).map(key => 
-    `<option value="${key}">${CATEGORIAS[key].name}</option>`
-  ).join('');
-  $("catVar").innerHTML = options;
-  $("gCat").innerHTML = options;
-}
-
-function renderHistorico() {
-  const lista = $("listaHistorico");
-  if (state.historico.length === 0) {
-    lista.innerHTML = "<div style='padding:15px'>Nenhum mês arquivado ainda.</div>";
-    return;
-  }
-
-  let html = "<div style='text-align:left'>";
-  state.historico.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(mes => {
-    const data = new Date(mes.date).toLocaleDateString('pt-BR', {month: 'long', year: 'numeric'});
-    const totalGasto = mes.variaveis.reduce((sum, item) => sum + item.valor, 0) + 
-                       mes.gastos.reduce((sum, item) => sum + item.valor, 0) + mes.aluguel;
-    const saldo = mes.rendaTotal - totalGasto;
-    const saldoClass = saldo >= 0 ? 'val-green' : 'val-red';
-
-    html += `
-      <div style="padding:10px 0; border-bottom:1px dashed var(--border); display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <strong style="color:var(--primary)">${data.charAt(0).toUpperCase() + data.slice(1)}</strong>
-          <span style="display:block; font-size:11px; color:var(--muted)">Renda: ${fmt(mes.rendaTotal)} | Gastos: ${fmt(totalGasto)}</span>
-        </div>
-        <div style="font-weight:700" class="${saldoClass}">${fmt(saldo)}</div>
-      </div>
-    `;
-  });
-  html += "</div>";
-  lista.innerHTML = html;
-}
-
-function render() {
-  if (state.updated) {
-    const date = new Date(state.updated).toLocaleTimeString('pt-BR');
-    $("ultima").textContent = `Atualizado às ${date}`;
-  }
-  
-  // Atualiza input de Renda
-  $("piso").value = state.salario.toFixed(2);
-  $("ticket").value = state.vr.toFixed(2);
-  $("aluguel").value = state.aluguel.toFixed(2);
-  $("incluirVr").checked = state.incluirVr;
-  $("heAtivo").checked = state.horasExtras.ativo;
-  
-  // Renderiza tabelas
-  renderTabVariavel();
-  renderTabGasto();
-  renderHistorico();
-}
-
-
-// --- FUNÇÕES DO CHART.JS (GRÁFICO) ---
-
-function renderChart(gastosPorCat) {
-  const ctx = $('financeChart').getContext('2d');
-  
-  const data = [
-    gastosPorCat.n || 0,
-    gastosPorCat.d || 0,
-    gastosPorCat.s || 0
-  ];
-  const labels = [CATEGORIAS.n.name, CATEGORIAS.d.name, CATEGORIAS.s.name];
-  const colors = [CATEGORIAS.n.color, CATEGORIAS.d.color, CATEGORIAS.s.color];
-  
-  if (myChart) {
-    myChart.data.datasets[0].data = data;
-    myChart.update();
-    return;
-  }
-
-  myChart = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: labels,
-      datasets: [{
-        data: data,
-        backgroundColor: colors,
-        hoverOffset: 10
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: {
-            color: document.body.classList.contains('dark-mode') ? 'var(--text)' : 'var(--primary)',
-            font: {
-              size: 11
-            }
-          }
-        },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              let label = context.label || '';
-              if (label) {
-                label += ': ';
-              }
-              if (context.parsed !== null) {
-                label += fmt(context.parsed);
-              }
-              return label;
-            }
-          }
-        }
-      }
+function arquivarMes() {
+    const d = state.dadosPorMes[state.mesAtivo];
+    if ((d.vale + d.saldo) === 0) return alert("Sem valores para arquivar.");
+    if (confirm(`Fechar mês ${state.mesAtivo}?`)) {
+        state.historicoArquivado.unshift({ mes: state.mesAtivo, valor: d.vale + d.saldo });
+        state.dadosPorMes[state.mesAtivo].gastos = [];
+        state.dadosPorMes[state.mesAtivo].vale = 0;
+        state.dadosPorMes[state.mesAtivo].saldo = 0;
+        mudarMes();
     }
-  });
 }
 
-// --- FUNÇÕES DE MENU LATERAL & EXPORTAÇÃO/BACKUP ---
+function salvarNoStorage() { localStorage.setItem('gestor_v10_pro', JSON.stringify(state)); }
 
-function toggleMenu(){
-  $('sidebar').classList.toggle('open');
-  $('overlay').classList.toggle('open');
+function carregarTudo() {
+    const salvo = localStorage.getItem('gestor_v10_pro');
+    if (salvo) state = JSON.parse(salvo);
+    $("mesReferencia").value = state.mesAtivo;
+    $("piso").value = state.config.piso;
+    $("ticket").value = state.config.ticket;
+    $("incluirVr").checked = state.config.incluirVr;
+    $("metaN").value = state.config.metaN;
+    $("metaD").value = state.config.metaD;
+    $("metaS").value = state.config.metaS;
+    mudarMes();
 }
 
-function toggleDarkMode() {
-  document.body.classList.toggle('dark-mode', $('darkModeToggle').checked);
-  localStorage.setItem('darkMode', $('darkModeToggle').checked ? 'true' : 'false');
-  if (myChart) {
-    myChart.destroy(); 
-    myChart = null;
-    calcular(); // Recalcula para re-renderizar o gráfico com cores corretas
-  }
+function toggleMenu() { 
+    $("sidebar").classList.toggle('open'); 
+    $("overlay").classList.toggle('open'); 
 }
 
-function toggleHe() {
-  state.horasExtras.ativo = $('heAtivo').checked;
-  salvar();
-  calcularRenda();
+function renderizarGrafico(n, d, s) {
+    const canvas = $('financeChart');
+    if(!canvas) return;
+    if (myChart) {
+        myChart.data.datasets[0].data = [n, d, s];
+        myChart.update();
+    } else {
+        myChart = new Chart(canvas.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Fixo', 'Lazer', 'Reserva'],
+                datasets: [{ data: [n, d, s], backgroundColor: ['#d63384', '#e67e22', '#20c997'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    }
 }
 
-function simularExtras(horas) {
-  const h = Number(horas) || 0;
-  if (state.horasExtras.valorHora === 0) {
-    $("simulacaoOutput").textContent = "Calcule a renda primeiro para obter o valor/hora.";
-    return;
-  }
-  const valorHoraExtra = state.horasExtras.valorHora * 2;
-  const ganhoSimulado = h * valorHoraExtra;
-  $("simulacaoOutput").textContent = `Projeção de Ganho: ${fmt(ganhoSimulado)}`;
-}
-
-function fecharMes() {
-  if (!confirm("Deseja realmente fechar e arquivar o mês atual? Os dados atuais serão zerados para um novo ciclo, mas salvos no Histórico.")) return;
-
-  const rendaTotal = Number($("mRendaTotal").textContent.replace(/[R$.,]/g, '').replace(',', '.') / 100) || 0;
-  
-  const mesArquivado = {
-    date: new Date().toISOString(),
-    rendaTotal: rendaTotal,
-    aluguel: state.aluguel,
-    variaveis: [...state.variaveis],
-    gastos: [...state.gastos],
-    config: {...state.config}
-  };
-
-  state.historico.push(mesArquivado);
-  
-  // Limpa dados do mês atual, mantendo configurações fixas
-  state.variaveis = [];
-  state.gastos = [];
-  state.descontos = { faltasNJ: 0, faltasJ: 0, atrasos: 0, outros: 0 }; 
-  state.horasExtras.horasDomingo = 0; // Zera HEs para o próximo mês
-
-  // Atualiza inputs
-  $("faltasNJ").value = 0;
-  $("faltasJ").value = 0;
-  $("atrasos").value = 0;
-  $("outrosDesc").value = 0;
-  $("heDom").value = 0;
-  
-  alert("Mês arquivado com sucesso! O estado foi zerado para o novo mês.");
-  calcularRenda();
+function gerarPDF() { 
+    if($("print-mes")) $("print-mes").textContent = "Mês: " + $("mesReferencia").value; 
+    window.print(); 
 }
 
 function baixarBackup() {
-  const dataStr = JSON.stringify(state, null, 2);
-  const blob = new Blob([dataStr], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `gestor_backup_${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  alert("Backup baixado com sucesso! Salve o arquivo em local seguro.");
+    const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `backup_${state.mesAtivo}.json`;
+    a.click();
 }
 
 function restaurarBackup(input) {
-  const file = input.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const restoredState = JSON.parse(e.target.result);
-      if (restoredState && restoredState.salario !== undefined && restoredState.historico !== undefined) {
-        if (confirm("Tem certeza que deseja restaurar? Os dados atuais serão substituídos.")) {
-          state = restoredState;
-          salvar();
-          carregar(); // Recarrega o estado e o DOM
-          alert("Backup restaurado com sucesso!");
-        }
-      } else {
-        alert("Arquivo de backup inválido.");
-      }
-    } catch (error) {
-      alert("Erro ao ler o arquivo: " + error.message);
-    }
-  };
-  reader.readAsText(file);
-}
-
-
-function exportarExcel() {
-    if (!confirm("Deseja exportar as transações de Contas e Gastos Diários como CSV?")) return;
-
-    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // \uFEFF for BOM (Excel encoding fix)
-    
-    // 1. Dados de transações
-    const transacoes = [
-        ...state.variaveis.map(t => ({...t, type: 'Conta Fixa/Variável'})),
-        ...state.gastos.map(t => ({...t, type: 'Gasto Diário'}))
-    ];
-
-    if (transacoes.length === 0) {
-        alert("Nenhuma transação para exportar.");
-        return;
-    }
-
-    const headers = ["ID", "Tipo", "Data", "Descrição", "Valor", "Categoria"];
-    csvContent += headers.join(";") + "\n";
-
-    transacoes.forEach(t => {
-        const row = [
-            `"${t.id}"`, // ID entre aspas para evitar quebras em números longos
-            t.type,
-            new Date(t.date).toISOString().slice(0, 10), // Apenas a data
-            `"${t.desc.replace(/"/g, '""')}"`, // Descrição entre aspas e escapa aspas duplas
-            t.valor.toFixed(2).replace('.', ','), // Formato brasileiro
-            CATEGORIAS[t.categoria].name
-        ].join(";");
-        csvContent += row + "\n";
-    });
-
-    // Cria e baixa o arquivo
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "transacoes_gestor.csv");
-    document.body.appendChild(link); 
-    link.click();
-    document.body.removeChild(link);
-}
-
-
-function gerarRelatorio() {
-    alert("Função de Gerar Relatório PDF ainda não implementada.");
-    // Para implementar esta função, você precisará de uma biblioteca como 'jspdf' ou 'html2pdf'.
-}
-
-
-// --- INICIALIZAÇÃO ---
-document.addEventListener('DOMContentLoaded', () => {
-  renderSelects();
-  carregar();
-  
-  // Adiciona listeners para salvar configs e recalcular metas
-  document.querySelectorAll('input[id^="meta"], input[id="aluguel"]').forEach(input => {
-    input.addEventListener('input', calcularRenda);
-  });
-  
-  document.querySelectorAll('#piso, #ticket, #incluirVr, #horasBase').forEach(input => {
-      input.addEventListener('change', calcularRenda);
-  });
-  
-  document.querySelectorAll('#faltasNJ, #faltasJ, #atrasos, #outrosDesc').forEach(input => {
-      input.addEventListener('input', calcularRenda);
-  });
-});
+    const reader = new FileReader();
+    reader.onload = (e) => { state = JSON.parse(e.target.result); carregarTudo(); };
+    reader.readAsText(input.files[0]);
+} 
