@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ff85a2">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>GESTOR FINANCEIRO V10</title>
+    
+    <link rel="stylesheet" href="formata.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/x-icon" href="android-chrome-192x192.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div id="overlay" class="sidebar-overlay"></div>
+
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <span><i class="fas fa-cog"></i> CONFIGURAÇÕES</span>
+            <button id="btnCloseMenu" class="btnCloseMenu"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="sidebar-section">
+            <label>Mês de Referência</label>
+            <input type="month" id="mesReferencia">
+        </div>
+        <div class="sidebar-section">
+            <label>Metas (%)</label>
+            <div class="row" style="gap: 5px;">
+                <input type="number" id="metaN" placeholder="N">
+                <input type="number" id="metaD" placeholder="D">
+                <input type="number" id="metaS" placeholder="S">
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <button class="menu-action" id="btnExport"><i class="fas fa-download"></i> Exportar Dados</button>
+            <button class="menu-action" id="btnImport"><i class="fas fa-upload"></i> Importar Dados</button>
+            <input type="file" id="fileInput" style="display: none;" accept=".json">
+        </div>
+    </aside>
+
+    <header>
+        <div class="header-content">
+            <button id="btnOpenMenu" class="menu-btn"><i class="fas fa-bars"></i></button>
+            <div class="brand">GESTOR V10</div>
+            <div style="width: 45px;"></div>
+        </div>
+    </header>
+
+    <main class="wrap">
+        <section class="main-balance">
+            <small>Saldo Disponível</small>
+            <h2 id="tSobra">R$ 0,00</h2>
+            <div class="balance-details">
+                <span>Renda: <b id="tTotal">R$ 0,00</b></span>
+                <span>Gastos: <b id="tGastos">R$ 0,00</b></span>
+            </div>
+        </section>
+
+        <div class="cards-container">
+            <div class="col-left">
+                <div class="card">
+                    <h3><i class="fas fa-wallet"></i> Dinheiro</h3>
+                    <div class="row">
+                        <input type="text" id="rDesc" placeholder="Classificação">
+                        <input type="number" id="rVal" placeholder="R$">
+                        <button class="btn-add" id="btnAddRenda">Add</button>
+                    </div>
+                    <div class="table-container">
+                        <table><tbody id="tabRendas"></tbody></table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-shopping-cart"></i> GASTOS DIÁRIOS</h3>
+                    <div class="row">
+                        <input type="date" id="gDia" placeholder="Dia" style="max-width: 70px;">
+                        <input type="text" id="gDesc" placeholder="Descrição">
+                    </div>
+                    <div class="row">
+                        <input type="number" id="gVal" placeholder="R$">
+                        <select id="gCat"></select>
+                        <button class="btn-add" id="btnAddGasto">Add</button>
+                    </div>
+                    <div class="table-container">
+                        <table><tbody id="tabHist"></tbody></table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-calculator"></i> SIMULADOR</h3>
+                    <div class="row">
+                        <input type="number" id="extraValor" placeholder="R$ Unitário">
+                        <input type="number" id="extraQtd" placeholder="Quantidade">
+                    </div>
+                    <p id="resExtra" style="font-weight: 700; color: var(--primary); font-size: 0.9rem; margin-top: 10px;">Aguardando dados...</p>
+                </div>
+            </div>
+
+            <div class="col-right">
+                <div class="card">
+                    <h3><i class="fas fa-chart-pie"></i> DISTRIBUIÇÃO</h3>
+                    <div class="chart-box">
+                        <canvas id="financeChart"></canvas>
+                    </div>
+                    <div id="graficoLegenda" class="custom-legend"></div>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-utensils"></i> VR / TICKET</h3>
+                    <div class="row">
+                        <input type="number" id="ticket" placeholder="Valor VR">
+                    </div>
+                    <label style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem; margin-top: 10px; cursor: pointer;">
+                        <input type="checkbox" id="incluirVr"> Somar VR ao Saldo?
+                    </label>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-sticky-note"></i> BLOCO DE NOTAS</h3>
+                    <div class="note-form">
+                        <textarea id="notaTexto" placeholder="Suas anotações..."></textarea>
+                        <button class="btn-add" id="btnSalvarNota" style="width: 100%; margin-top: 10px;">Salvar Nota</button>
+                    </div>
+                    <div id="listaNotas" class="notes-display"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="scripts.js"></script>
+    <script>
+        // Registro do Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => {
+                        console.log('Gestor V10: Service Worker pronto!');
+                        
+                        // Escuta por atualizações do SW
+                        reg.onupdatefound = () => {
+                            const installingWorker = reg.installing;
+                            installingWorker.onstatechange = () => {
+                                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('Nova versão disponível! Reinicie o app.');
+                                }
+                            };
+                        };
+                    })
+                    .catch(err => console.error('Erro ao registrar SW:', err));
+            });
+        }
+
+        // Lógica para capturar compartilhamentos (Web Share Target)
+        window.addEventListener('DOMContentLoaded', () => {
+            const parsedUrl = new URL(window.location);
+            const sharedTitle = parsedUrl.searchParams.get('title');
+            const sharedText = parsedUrl.searchParams.get('text');
+            const sharedUrl = parsedUrl.searchParams.get('url');
+
+            if (sharedTitle || sharedText || sharedUrl) {
+                const content = `Compartilhado: ${sharedTitle || ''} ${sharedText || ''} ${sharedUrl || ''}`;
+                // Se o campo de nota existir, preenche automaticamente
+                const notaInput = document.getElementById('notaTexto');
+                if (notaInput) {
+                    notaInput.value = content;
+                    console.log('Conteúdo compartilhado capturado para o Bloco de Notas.');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

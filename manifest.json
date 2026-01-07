@@ -1,0 +1,105 @@
+{
+  "name": "Gestor Financeiro Pro V10",
+  "short_name": "Gestor V10",
+  "description": "Controle financeiro avançado com suporte offline, sincronização inteligente e bloco de notas integrado.",
+  "id": "/Gestor_Financeiro/",
+  "start_url": "/Gestor_Financeiro/index.html",
+  "scope": "/Gestor_Financeiro/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "tabbed",
+    "minimal-ui"
+  ],
+  "background_color": "#ffffff",
+  "theme_color": "#ff85a2",
+  "categories": [
+    "finance",
+    "productivity"
+  ],
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "icons": [
+    {
+      "src": "android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Interface Mobile Gestor V10"
+    },
+    {
+      "src": "https://placehold.co/1280x720/ff85a2/white?text=Gestor+V10+Desktop",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Interface Desktop Gestor V10"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nova Despesa",
+      "short_name": "Adicionar",
+      "description": "Abrir formulário de gasto rápido",
+      "url": "/Gestor_Financeiro/index.html?action=new",
+      "icons": [
+        {
+          "src": "android-chrome-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/Gestor_Financeiro/index.html",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "file_handlers": [
+    {
+      "action": "/Gestor_Financeiro/index.html",
+      "accept": {
+        "application/json": [".json"]
+      }
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+gestor",
+      "url": "/Gestor_Financeiro/index.html?uri=%s"
+    }
+  ],
+  "note_taking": {
+    "new_note_url": "/Gestor_Financeiro/index.html"
+  },
+  "launch_handler": {
+    "client_mode": ["focus-existing", "auto"]
+  }
+}

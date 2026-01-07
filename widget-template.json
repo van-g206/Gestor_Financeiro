@@ -1,0 +1,17 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Gestor Financeiro V10",
+      "weight": "Bolder",
+      "size": "Medium"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Saldo atualizado no app",
+      "wrap": true
+    }
+  ]
+}
